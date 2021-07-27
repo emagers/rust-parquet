@@ -13,3 +13,4 @@ A CLI tool for inspecting Parquet files
 1. `rust-parquet count <filename>` outputs the row count
 1. `rust-parquet schema <filename>` outputs the schema
 1. `rust-parquet display -c 5 <filename>` outputs the top 5 rows
+1. `rust-parquet display -c 5 -f csv <filename>` outputs the top 5 rows in CSV format
