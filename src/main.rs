@@ -37,6 +37,14 @@ fn main() {
 						.takes_value(true),
 				)
 				.arg(
+					Arg::with_name("format")
+						.short("f")
+						.long("format")
+						.help("The format to display the output in, valid values are csv and json")
+						.takes_value(true)
+						.default_value("json")
+				)
+				.arg(
 					Arg::with_name("file")
 						.required(true)
 						.index(1),
@@ -62,9 +70,8 @@ fn main() {
 
 fn get_file_reader(args: &clap::ArgMatches) -> SerializedFileReader<File> {
 	let file_arg = args.value_of("file").unwrap();
-	let file = File::open(&Path::new(file_arg)).unwrap();
 
-	return SerializedFileReader::new(file).unwrap();
+	return get_file_reader_from_path(file_arg);
 }
 
 fn get_file_reader_from_path(file_name: &str) -> SerializedFileReader<File> {
@@ -74,9 +81,7 @@ fn get_file_reader_from_path(file_name: &str) -> SerializedFileReader<File> {
 }
 
 fn get_file_metadata(reader: &SerializedFileReader<File>) -> &FileMetaData {
-	let parquet_metadata = reader.metadata();
-
-	return parquet_metadata.file_metadata();
+	return reader.metadata().file_metadata();
 }
 
 fn meta_data(file: &str) {
@@ -116,20 +121,71 @@ fn schema(args: &clap::ArgMatches) {
 
 fn display(args: &clap::ArgMatches) {
 	let reader = get_file_reader(args);
+	let meta = get_file_metadata(&reader);
 
-	let count: usize;
+	let mut count: usize = 10;
 
 	if let Some(count_arg) = args.value_of("count") {
 		count = count_arg.parse::<usize>().unwrap();
-
-	} else {
-		count = 10;
 	}
 
 	let iter = reader.get_row_iter(None).unwrap();
-	let mut count_iter = iter.take(count);
+	let count_iter = iter.take(count);
 
-	while let Some(record) = count_iter.next() {
-		println!("{}", record);
+	match args.value_of("format") {
+		Some("csv") => print_csv(count_iter),
+		Some("json") => print_json(count, meta.schema_descr().columns().len(), count_iter),
+		_ => {}
 	}
+}
+
+fn print_csv(mut iter: std::iter::Take<parquet::record::reader::RowIter>) {
+	let mut get_headers = true;
+	let mut col_headers = Vec::new();
+
+	while let Some(record) = iter.next() {
+		let mut col_values = Vec::new();
+
+		for (_, (name, field)) in record.get_column_iter().enumerate() {
+			if get_headers {
+				col_headers.push(name.to_string());
+			}
+
+			col_values.push(field.to_string());
+		}
+
+		if get_headers {
+			println!("{}", col_headers.join(","));
+		}
+
+		println!("{}", col_values.join(","));
+
+		get_headers = false;
+	}
+}
+
+fn print_json(row_count: usize, col_count: usize, iter: std::iter::Take<parquet::record::reader::RowIter>) {
+	print!("[");
+
+	for (row_index, row) in iter.enumerate() {
+		print!("{{");
+
+		for (col_index, (name, field)) in row.get_column_iter().enumerate() {
+			let out = format!("\"{}\": {}", name, field);
+
+			if col_index == col_count - 1 {
+				print!("{}", out);
+			} else {
+				print!("{}, ", out);
+			}
+		}
+
+		if row_index == row_count - 1 {
+			print!("}}");
+		} else {
+			print!("}},");
+		}
+	}
+
+	println!("]");
 }
