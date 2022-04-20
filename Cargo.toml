@@ -2,10 +2,10 @@
 name = "rust-parquet"
 version = "0.1.0"
 authors = ["@emagers <https://github.com/emagers>"]
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-parquet = "5.0.0"
-clap = "2.33.3"
+parquet =  { version = "12.0.0", features = ["cli"] }
+clap = "3.1"

@@ -1,7 +1,7 @@
 extern crate clap;
 extern crate parquet;
 
-use clap::{App, Arg, SubCommand};
+use clap::{Arg, Command};
 use parquet::schema::printer;
 use parquet::file::reader::{FileReader, SerializedFileReader};
 use parquet::file::metadata::FileMetaData;
@@ -9,47 +9,47 @@ use std::fs::File;
 use std::path::Path;
 
 fn main() {
-	let app = App::new("Parquet Viewer")
+	let app = Command::new("Parquet Viewer")
 		.about("A CLI tool to inspect parquet files.")
 		.version("0.1.0")
 		.author("@emagers (https://github.com/emagers)")
-		.subcommand(SubCommand::with_name("count")
+		.subcommand(Command::new("count")
 			.about("Gets the row count of the parquet file")
-			.arg(Arg::with_name("file")
+			.arg(Arg::new("file")
 					.required(true)
 					.index(1),
 			))
-		.subcommand(SubCommand::with_name("schema")
+		.subcommand(Command::new("schema")
 			.about("Displays the schema of the parquet file")
 			.arg(
-				Arg::with_name("file")
+				Arg::new("file")
 					.required(true)
 					.index(1),
 			))
 		.subcommand(
-			SubCommand::with_name("display")
+			Command::new("display")
 				.about("Displays a specified number of records from the file")
 				.arg(
-					Arg::with_name("count")
-						.short("c")
+					Arg::new("count")
+						.short('c')
 						.long("count")
 						.help("The count of records to display from the start of the file")
 						.takes_value(true),
 				)
 				.arg(
-					Arg::with_name("format")
-						.short("f")
+					Arg::new("format")
+						.short('f')
 						.long("format")
 						.help("The format to display the output in, valid values are csv and json")
 						.takes_value(true)
 						.default_value("json")
 				)
 				.arg(
-					Arg::with_name("file")
+					Arg::new("file")
 						.required(true)
 						.index(1),
 				)
-		).arg(Arg::with_name("file")
+		).arg(Arg::new("file")
 			.required(false)
 			.index(1),
 		);
@@ -134,7 +134,7 @@ fn display(args: &clap::ArgMatches) {
 
 	match args.value_of("format") {
 		Some("csv") => print_csv(count_iter),
-		Some("json") => print_json(count, meta.schema_descr().columns().len(), count_iter),
+		Some("json") => print_json(count, count_iter),
 		_ => {}
 	}
 }
@@ -164,27 +164,18 @@ fn print_csv(mut iter: std::iter::Take<parquet::record::reader::RowIter>) {
 	}
 }
 
-fn print_json(row_count: usize, col_count: usize, iter: std::iter::Take<parquet::record::reader::RowIter>) {
+fn print_json(row_count: usize, iter: std::iter::Take<parquet::record::reader::RowIter>) {
 	print!("[");
 
-	for (row_index, row) in iter.enumerate() {
-		print!("{{");
+	let mut i = 0;
 
-		for (col_index, (name, field)) in row.get_column_iter().enumerate() {
-			let out = format!("\"{}\": {}", name, field);
+	for record in iter {
+		i = i + 1;
 
-			if col_index == col_count - 1 {
-				print!("{}", out);
-			} else {
-				print!("{}, ", out);
-			}
-		}
-
-		if row_index == row_count - 1 {
-			print!("}}");
-		} else {
-			print!("}},");
-		}
+		match i < row_count {
+			true => print!("{}, ", record.to_json_value()),
+			false => print!("{}", record.to_json_value())
+		};
 	}
 
 	println!("]");
